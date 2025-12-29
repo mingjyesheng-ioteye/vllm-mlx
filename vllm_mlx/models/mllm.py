@@ -40,7 +40,7 @@ def _patch_transformers_video_processor_bug():
     can be None when PyTorch/torchvision is not available, causing:
     TypeError: argument of type 'NoneType' is not iterable
 
-    This patch makes the function safely return None when the mapping is unavailable.
+    This patch wraps the original function to safely handle the None case.
     """
     try:
         from transformers.models.auto import video_processing_auto as vp_auto
@@ -49,27 +49,22 @@ def _patch_transformers_video_processor_bug():
         if original_func is None:
             return
 
+        # Check if patching is needed (VIDEO_PROCESSOR_MAPPING_NAMES is None)
+        mapping_names = getattr(vp_auto, 'VIDEO_PROCESSOR_MAPPING_NAMES', None)
+        if mapping_names is not None:
+            # No patch needed - the mapping exists and will work correctly
+            logger.debug("VIDEO_PROCESSOR_MAPPING_NAMES exists, no patch needed")
+            return
+
         def patched_video_processor_class_from_name(class_name):
             """Patched version that handles None VIDEO_PROCESSOR_MAPPING_NAMES."""
             if class_name is None:
                 return None
             try:
-                extractors = getattr(vp_auto, 'VIDEO_PROCESSOR_MAPPING_NAMES', None)
-                if extractors is None:
-                    return None
-                if class_name in extractors:
-                    return extractors[class_name]
-                # Check in values
-                for module_name, cls_names in extractors.items():
-                    if cls_names is None:
-                        continue
-                    if isinstance(cls_names, str):
-                        if class_name == cls_names:
-                            return getattr(vp_auto, class_name, None)
-                    elif class_name in cls_names:
-                        return getattr(vp_auto, class_name, None)
-                return None
+                # Try the original function first
+                return original_func(class_name)
             except (TypeError, AttributeError):
+                # If VIDEO_PROCESSOR_MAPPING_NAMES is None, return None gracefully
                 return None
 
         vp_auto.video_processor_class_from_name = patched_video_processor_class_from_name

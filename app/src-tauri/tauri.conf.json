@@ -20,6 +20,9 @@
       "icons/icon.ico"
     ],
     "resources": [],
+    "externalBin": [
+      "binaries/vllm-mlx-server"
+    ],
     "copyright": "Apache-2.0",
     "category": "DeveloperTool",
     "shortDescription": "Run LLMs locally on Apple Silicon",
@@ -47,32 +50,13 @@
             "shell:default",
             "shell:allow-spawn",
             "shell:allow-kill",
-            "shell:allow-execute",
             {
               "identifier": "shell:allow-spawn",
               "allow": [
                 {
-                  "name": "python3",
-                  "cmd": "/Users/ubuntu/.pyenv/shims/python3",
-                  "args": true,
-                  "sidecar": false
-                },
-                {
-                  "name": "kill",
-                  "cmd": "kill",
-                  "args": true,
-                  "sidecar": false
-                }
-              ]
-            },
-            {
-              "identifier": "shell:allow-execute",
-              "allow": [
-                {
-                  "name": "python3",
-                  "cmd": "/Users/ubuntu/.pyenv/shims/python3",
-                  "args": true,
-                  "sidecar": false
+                  "name": "binaries/vllm-mlx-server",
+                  "sidecar": true,
+                  "args": true
                 },
                 {
                   "name": "kill",
@@ -85,7 +69,7 @@
             "http:default",
             "http:allow-fetch",
             {
-              "identifier": "http:default",
+              "identifier": "http:allow-fetch",
               "allow": [
                 {
                   "url": "http://localhost:*/*"

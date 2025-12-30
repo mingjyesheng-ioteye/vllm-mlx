@@ -6,6 +6,7 @@ import "./App.css";
 
 interface ServerStatus {
   running: boolean;
+  ready: boolean;
   port: number;
   model: string | null;
   pid: number | null;
@@ -19,6 +20,7 @@ interface Message {
 function App() {
   const [serverStatus, setServerStatus] = useState<ServerStatus>({
     running: false,
+    ready: false,
     port: 8000,
     model: null,
     pid: null,
@@ -45,11 +47,9 @@ function App() {
     try {
       addLog(`Starting server with model: ${modelName}`);
 
-      // Use Command.create to run Python with vllm_mlx module
-      // The name must match the shell:allow-execute permission in capabilities
-      const command = Command.create("python3", [
-        "-m",
-        "vllm_mlx.cli",
+      // Use Command.sidecar for bundled binary (no Python required)
+      // The name must match externalBin in tauri.conf.json
+      const command = Command.sidecar("binaries/vllm-mlx-server", [
         "serve",
         modelName,
         "--port",
@@ -79,6 +79,7 @@ function App() {
 
       setServerStatus({
         running: true,
+        ready: false,
         port,
         model: modelName,
         pid: child.pid,
@@ -92,6 +93,26 @@ function App() {
       });
 
       addLog(`Server started with PID: ${child.pid}`);
+      addLog("Waiting for model to load...");
+
+      // Poll until server is ready
+      const checkReady = async () => {
+        for (let i = 0; i < 120; i++) { // Wait up to 2 minutes
+          try {
+            const resp = await fetch(`http://localhost:${port}/v1/models`);
+            if (resp.ok) {
+              addLog("Server is ready!");
+              setServerStatus((prev) => ({ ...prev, ready: true }));
+              return;
+            }
+          } catch {
+            // Server not ready yet
+          }
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        addLog("Server failed to become ready");
+      };
+      checkReady();
     } catch (error) {
       addLog(`Failed to start server: ${error}`);
     }
@@ -118,7 +139,7 @@ function App() {
   };
 
   const sendMessage = async () => {
-    if (!inputMessage.trim() || !serverStatus.running) return;
+    if (!inputMessage.trim() || !serverStatus.ready) return;
 
     const userMessage: Message = { role: "user", content: inputMessage };
     setMessages((prev) => [...prev, userMessage]);
@@ -162,8 +183,8 @@ function App() {
     <div className="app">
       <header className="header">
         <h1>vLLM-MLX</h1>
-        <span className={`status ${serverStatus.running ? "running" : "stopped"}`}>
-          {serverStatus.running ? "Running" : "Stopped"}
+        <span className={`status ${serverStatus.ready ? "running" : serverStatus.running ? "loading" : "stopped"}`}>
+          {serverStatus.ready ? "Ready" : serverStatus.running ? "Loading..." : "Stopped"}
         </span>
       </header>
 
@@ -261,15 +282,17 @@ function App() {
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && sendMessage()}
               placeholder={
-                serverStatus.running
+                serverStatus.ready
                   ? "Type a message..."
+                  : serverStatus.running
+                  ? "Loading model..."
                   : "Start the server first..."
               }
-              disabled={!serverStatus.running || isGenerating}
+              disabled={!serverStatus.ready || isGenerating}
             />
             <button
               onClick={sendMessage}
-              disabled={!serverStatus.running || isGenerating || !inputMessage.trim()}
+              disabled={!serverStatus.ready || isGenerating || !inputMessage.trim()}
             >
               Send
             </button>

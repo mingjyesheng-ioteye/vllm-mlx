@@ -1527,6 +1527,68 @@ If you use vLLM-MLX in your research or project, please cite:
 
 **Repository**: [https://github.com/waybarrios/vllm-mlx](https://github.com/waybarrios/vllm-mlx)
 
+## Desktop App (Tauri)
+
+vLLM-MLX includes a desktop application built with Tauri for a native macOS experience.
+
+### Features
+
+- Start/stop vLLM-MLX server with one click
+- Chat interface to interact with loaded models
+- Real-time server logs
+- No Python required - bundled standalone binary
+
+### Building the Desktop App
+
+#### Prerequisites
+
+- [Node.js](https://nodejs.org/) 18+
+- [Rust](https://rustup.rs/) (for Tauri)
+- Python 3.10+ with `vllm_mlx` installed (for building the binary)
+
+#### Step 1: Build the Standalone Binary
+
+```bash
+# From the project root
+python build_binary.py
+```
+
+This creates `dist/vllm-mlx-server` (~550MB) using PyInstaller.
+
+#### Step 2: Copy Binary to Tauri Sidecar Location
+
+```bash
+mkdir -p app/src-tauri/binaries
+cp dist/vllm-mlx-server app/src-tauri/binaries/vllm-mlx-server-aarch64-apple-darwin
+chmod +x app/src-tauri/binaries/vllm-mlx-server-aarch64-apple-darwin
+```
+
+#### Step 3: Build the Tauri App
+
+```bash
+cd app
+npm install
+npm run tauri:build
+```
+
+The built app will be at `app/src-tauri/target/release/bundle/macos/vLLM-MLX.app`
+
+### Development Mode
+
+For development with hot-reload:
+
+```bash
+cd app
+npm install
+npm run tauri:dev
+```
+
+### Distribution
+
+The built `.app` is fully self-contained (~550MB) and works without any external dependencies. Users don't need Python or any other software installed.
+
+**Note**: The binary is built for Apple Silicon (aarch64). For Intel Macs, you would need to build a separate binary with the suffix `-x86_64-apple-darwin`.
+
 ## Acknowledgments
 
 This project builds upon excellent work from:

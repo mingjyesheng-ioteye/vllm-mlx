@@ -1,0 +1,31 @@
+[package]
+name = "vllm-mlx-app"
+version = "0.1.0"
+description = "vLLM-MLX Desktop App"
+authors = ["vLLM-MLX Contributors"]
+edition = "2021"
+
+[lib]
+name = "vllm_mlx_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = [] }
+tauri-plugin-shell = "2.0"
+tauri-plugin-http = { version = "2.0", features = ["unsafe-headers"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+log = "0.4"
+env_logger = "0.11"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[[bin]]
+name = "vllm-mlx-app"
+path = "src/main.rs"

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0",
+  "productName": "vLLM-MLX",
+  "version": "0.1.0",
+  "identifier": "com.vllm-mlx.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "copyright": "Apache-2.0",
+    "category": "DeveloperTool",
+    "shortDescription": "Run LLMs locally on Apple Silicon",
+    "longDescription": "vLLM-MLX Desktop App - GPU-accelerated LLM inference on Mac with MLX"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "vLLM-MLX",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "main-capability",
+          "description": "Main window capabilities",
+          "windows": ["main"],
+          "permissions": [
+            "core:default",
+            "shell:default",
+            "shell:allow-spawn",
+            "shell:allow-kill",
+            "shell:allow-execute",
+            {
+              "identifier": "shell:allow-spawn",
+              "allow": [
+                {
+                  "name": "python3",
+                  "cmd": "/Users/ubuntu/.pyenv/shims/python3",
+                  "args": true,
+                  "sidecar": false
+                },
+                {
+                  "name": "kill",
+                  "cmd": "kill",
+                  "args": true,
+                  "sidecar": false
+                }
+              ]
+            },
+            {
+              "identifier": "shell:allow-execute",
+              "allow": [
+                {
+                  "name": "python3",
+                  "cmd": "/Users/ubuntu/.pyenv/shims/python3",
+                  "args": true,
+                  "sidecar": false
+                },
+                {
+                  "name": "kill",
+                  "cmd": "kill",
+                  "args": true,
+                  "sidecar": false
+                }
+              ]
+            },
+            "http:default",
+            "http:allow-fetch",
+            {
+              "identifier": "http:default",
+              "allow": [
+                {
+                  "url": "http://localhost:*/*"
+                },
+                {
+                  "url": "http://127.0.0.1:*/*"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "plugins": {}
+}

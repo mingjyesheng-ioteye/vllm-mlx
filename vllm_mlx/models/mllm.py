@@ -844,6 +844,8 @@ class MLXMultimodalLM:
         - {"type": "text", "text": "..."}
         - {"type": "image_url", "image_url": {"url": "..."}}
         - {"type": "image_url", "image_url": {"url": "data:image/...;base64,..."}}
+        - {"type": "video_url", "video_url": {"url": "..."}}
+        - {"type": "video_url", "video_url": {"url": "data:video/mp4;base64,..."}}
 
         Args:
             messages: List of chat messages (OpenAI format)
@@ -903,6 +905,13 @@ class MLXMultimodalLM:
 
                         elif item_type == "video":
                             videos.append(item.get("video", item.get("url", "")))
+
+                        elif item_type == "video_url":
+                            vid_url = item.get("video_url", {})
+                            if isinstance(vid_url, str):
+                                videos.append(vid_url)
+                            else:
+                                videos.append(vid_url.get("url", ""))
 
         # Process images
         all_images = []

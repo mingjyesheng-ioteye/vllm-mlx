@@ -15,9 +15,20 @@
 
 All benchmarks were run using the **bundled standalone binary** (`dist/vllm-mlx-server`), which packages the entire vLLM-MLX server as a self-contained executable without requiring Python installation.
 
+The binary supports:
+- **LLM benchmarks** - Text generation performance
+- **MLLM Image benchmarks** - Vision-language models with various image resolutions
+- **MLLM Video benchmarks** - Vision-language models with various frame configurations
+
 ```bash
-# Example benchmark command
+# LLM benchmark
 ./dist/vllm-mlx-server bench mlx-community/Llama-3.2-1B-Instruct-4bit --num-prompts 10 --max-tokens 256
+
+# MLLM Image benchmark (auto-detected for VL models)
+./dist/vllm-mlx-server bench mlx-community/Qwen3-VL-4B-Instruct-3bit --quick
+
+# MLLM Video benchmark
+./dist/vllm-mlx-server bench mlx-community/Qwen3-VL-4B-Instruct-3bit --video --quick
 ```
 
 ---
@@ -66,36 +77,44 @@ Llama-3.1-8B    ██████                                              
 
 ### Model: Qwen3-VL-4B-Instruct-3bit
 
-Using the Python benchmark tool (`vllm-mlx-bench`) for multimodal capabilities.
+The bundled binary now supports MLLM benchmarks for both image and video processing.
+
+```bash
+# MLLM Image Benchmark (auto-detected for VL models)
+./dist/vllm-mlx-server bench mlx-community/Qwen3-VL-4B-Instruct-3bit --quick
+
+# MLLM Video Benchmark
+./dist/vllm-mlx-server bench mlx-community/Qwen3-VL-4B-Instruct-3bit --video --quick
+```
 
 ### Image Processing Performance
 
 | Resolution | Pixels | Time | Tokens | Speed | Memory |
 |------------|--------|------|--------|-------|--------|
-| 224x224 | 50K | 3.86s | 143 | 37.1 tok/s | 2.65 GB |
-| 448x448 | 201K | 4.19s | 126 | 30.1 tok/s | 3.14 GB |
-| 768x768 | 590K | 5.79s | 103 | 17.8 tok/s | 3.42 GB |
-| 1024x1024 | 1.0M | 8.35s | 101 | 12.1 tok/s | 3.60 GB |
+| 224x224 | 50K | 3.83s | 143 | 37.4 tok/s | 2.64 GB |
+| 448x448 | 201K | 4.20s | 126 | 30.0 tok/s | 3.14 GB |
+| 768x768 | 590K | 5.82s | 103 | 17.7 tok/s | 3.42 GB |
+| 1024x1024 | 1.0M | 8.42s | 101 | 12.0 tok/s | 3.60 GB |
 
 **Summary:**
-- **Average Speed**: 21.3 tok/s across all resolutions
+- **Average Speed**: 21.2 tok/s across all resolutions
 - **Peak Memory**: 3.60 GB
-- **Fastest**: 224x224 (37.1 tok/s)
-- **Slowest**: 1024x1024 (12.1 tok/s)
+- **Fastest**: 224x224 (37.4 tok/s)
+- **Slowest**: 1024x1024 (12.0 tok/s)
 - **Slowdown Factor**: 2.2x from smallest to largest resolution
 
 ### Video Processing Performance
 
 | Configuration | Frames | Time | Tokens | Speed | Memory |
 |--------------|--------|------|--------|-------|--------|
-| 4 frames @ 1fps | 4 | 11.44s | 256 | 22.4 tok/s | 3.54 GB |
-| 8 frames @ 2fps | 8 | 16.94s | 256 | 15.1 tok/s | 4.00 GB |
-| 16 frames @ 2fps | 16 | 27.83s | 256 | 9.2 tok/s | 4.67 GB |
+| 4 frames @ 1fps | 4 | 11.38s | 256 | 22.5 tok/s | 3.54 GB |
+| 8 frames @ 2fps | 8 | 16.68s | 256 | 15.4 tok/s | 4.00 GB |
+| 16 frames @ 2fps | 16 | 27.68s | 256 | 9.2 tok/s | 4.67 GB |
 
 **Summary:**
-- **Average Speed**: 13.7 tok/s across all configurations
+- **Average Speed**: 13.8 tok/s across all configurations
 - **Peak Memory**: 4.67 GB
-- **Fastest**: 4 frames (22.4 tok/s)
+- **Fastest**: 4 frames (22.5 tok/s)
 - **Slowest**: 16 frames (9.2 tok/s)
 
 ---
@@ -168,7 +187,9 @@ Based on the benchmark results in the main README, here's how M1 Max 64GB compar
 
 ## Running Your Own Benchmarks
 
-### Using the Bundled Binary (Recommended)
+### Using the Bundled Binary
+
+The bundled binary supports LLM, MLLM image, and MLLM video benchmarks without requiring Python installation.
 
 ```bash
 # LLM Benchmark
@@ -180,23 +201,35 @@ Based on the benchmark results in the main README, here's how M1 Max 64GB compar
 ./dist/vllm-mlx-server bench mlx-community/Qwen3-0.6B-8bit \
     --num-prompts 20 \
     --max-tokens 512
+
+# MLLM Image Benchmark (auto-detected for VL models)
+./dist/vllm-mlx-server bench mlx-community/Qwen3-VL-4B-Instruct-3bit --quick
+
+# MLLM Image Benchmark (full - 10 resolutions)
+./dist/vllm-mlx-server bench mlx-community/Qwen3-VL-4B-Instruct-3bit
+
+# MLLM Video Benchmark (quick - 3 configurations)
+./dist/vllm-mlx-server bench mlx-community/Qwen3-VL-4B-Instruct-3bit --video --quick
+
+# MLLM Video Benchmark (full - 8 configurations)
+./dist/vllm-mlx-server bench mlx-community/Qwen3-VL-4B-Instruct-3bit --video
+
+# Save results to JSON
+./dist/vllm-mlx-server bench mlx-community/Qwen3-VL-4B-Instruct-3bit --quick --output results.json
 ```
 
-### Using Python (for VLM benchmarks)
+### Benchmark CLI Options
 
-```bash
-# Image benchmark (quick mode - 4 resolutions)
-python -m vllm_mlx.benchmark --model mlx-community/Qwen3-VL-4B-Instruct-3bit --quick
-
-# Image benchmark (full - 10 resolutions)
-python -m vllm_mlx.benchmark --model mlx-community/Qwen3-VL-4B-Instruct-3bit
-
-# Video benchmark (quick mode - 3 configurations)
-python -m vllm_mlx.benchmark --model mlx-community/Qwen3-VL-4B-Instruct-3bit --video --quick
-
-# Video benchmark (full - 8 configurations)
-python -m vllm_mlx.benchmark --model mlx-community/Qwen3-VL-4B-Instruct-3bit --video
-```
+| Option | Description |
+|--------|-------------|
+| `--num-prompts N` | Number of prompts for LLM benchmark (default: 10) |
+| `--max-tokens N` | Max tokens per generation (default: 256) |
+| `--mllm` | Force MLLM mode (auto-detected for VL models) |
+| `--quick` | Quick benchmark with fewer configurations |
+| `--video` | Run video benchmark instead of image |
+| `--video-url URL` | Custom video URL for benchmark |
+| `--video-path PATH` | Local video file for benchmark |
+| `--output FILE` | Save results to JSON file |
 
 ---
 

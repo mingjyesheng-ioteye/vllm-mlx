@@ -463,11 +463,12 @@ class Scheduler:
                 request.remaining_tokens = request.prompt_token_ids
                 tokens_to_process = request.prompt_token_ids
 
-            # Insert into BatchGenerator with optional cache
+            # Insert into BatchGenerator
+            # Note: mlx_lm BatchGenerator.insert() doesn't support caches parameter
+            # Cache handling is done at a higher level via prefix caching
             uids = self.batch_generator.insert(
                 [tokens_to_process],
                 max_tokens=[request.sampling_params.max_tokens],
-                caches=[cache_to_use] if cache_to_use else None,
             )
 
             if uids:

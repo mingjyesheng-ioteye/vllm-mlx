@@ -146,6 +146,8 @@ def main():
         "huggingface_hub",
         "--collect-all",
         "safetensors",
+        "--collect-all",
+        "requests",
         # Collect submodules
         "--collect-submodules",
         "vllm_mlx",

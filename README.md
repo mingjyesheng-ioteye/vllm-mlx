@@ -1555,6 +1555,35 @@ python build_binary.py
 
 This creates `dist/vllm-mlx-server` (~550MB) using PyInstaller.
 
+#### Testing the Standalone Binary
+
+After building, you can test the binary with these commands:
+
+```bash
+# Test the server
+./dist/vllm-mlx-server serve mlx-community/Llama-3.2-1B-Instruct-4bit --port 8000
+
+# Test with curl (in another terminal)
+curl http://localhost:8000/health
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "default", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 10}'
+
+# Run benchmark
+./dist/vllm-mlx-server bench mlx-community/Llama-3.2-1B-Instruct-4bit --num-prompts 5 --max-tokens 256
+```
+
+**Bundled Binary Benchmark Results:**
+
+Results vary by hardware. Here's a comparison across different Apple Silicon chips:
+
+| Model | M1 64GB | M4 Max 128GB | Ratio |
+|-------|---------|--------------|-------|
+| Llama-3.2-1B-Instruct-4bit | 196.8 tok/s | 463.4 tok/s | 0.42x |
+| Llama-3.2-3B-Instruct-4bit | 91.6 tok/s | 200.1 tok/s | 0.46x |
+
+*Performance scales with memory bandwidth: M4 Max (~400 GB/s) vs M1 (~68 GB/s)*
+
 #### Step 2: Copy Binary to Tauri Sidecar Location
 
 ```bash

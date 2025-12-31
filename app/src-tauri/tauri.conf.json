@@ -63,6 +63,33 @@
                   "cmd": "kill",
                   "args": true,
                   "sidecar": false
+                },
+                {
+                  "name": "pkill",
+                  "cmd": "pkill",
+                  "args": true,
+                  "sidecar": false
+                },
+                {
+                  "name": "sh",
+                  "cmd": "sh",
+                  "args": true,
+                  "sidecar": false
+                }
+              ]
+            },
+            {
+              "identifier": "shell:allow-execute",
+              "allow": [
+                {
+                  "name": "pkill",
+                  "cmd": "pkill",
+                  "args": true
+                },
+                {
+                  "name": "sh",
+                  "cmd": "sh",
+                  "args": true
                 }
               ]
             },

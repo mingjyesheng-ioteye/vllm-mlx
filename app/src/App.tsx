@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Command } from "@tauri-apps/plugin-shell";
 import { invoke } from "@tauri-apps/api/core";
 import { fetch } from "@tauri-apps/plugin-http";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 
 interface ServerStatus {
@@ -15,6 +16,12 @@ interface ServerStatus {
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+interface CachedModel {
+  name: string;
+  org: string;
+  full_name: string;
 }
 
 function App() {
@@ -31,7 +38,11 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [cachedModels, setCachedModels] = useState<CachedModel[]>([]);
+  const [useCustomModel, setUseCustomModel] = useState(false);
   const childProcess = useRef<any>(null);
+  const currentPid = useRef<number | null>(null);
+  const isStarting = useRef<boolean>(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const addLog = (message: string) => {
@@ -43,7 +54,66 @@ function App() {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  useEffect(() => {
+    const loadCachedModels = async () => {
+      try {
+        const models = await invoke<CachedModel[]>("get_cached_models");
+        setCachedModels(models);
+        // If we have cached models and current model is in cache, select it
+        if (models.length > 0) {
+          const currentInCache = models.find((m) => m.full_name === modelName);
+          if (!currentInCache) {
+            // Default to first cached model if current isn't in cache
+            setModelName(models[0].full_name);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load cached models:", error);
+      }
+    };
+    loadCachedModels();
+  }, []);
+
+  // Cleanup: kill child process when window closes
+  useEffect(() => {
+    const appWindow = getCurrentWindow();
+    const unlisten = appWindow.onCloseRequested(async () => {
+      if (childProcess.current && currentPid.current) {
+        console.log("Stopping server before exit...");
+        const pid = currentPid.current;
+        try {
+          // Kill process tree recursively (children and grandchildren)
+          try {
+            const killTree = Command.create("sh", ["-c",
+              `pgrep -P ${pid} | while read child; do ` +
+              `pgrep -P $child | xargs -r kill -9 2>/dev/null; ` +
+              `kill -9 $child 2>/dev/null; ` +
+              `done; true`
+            ]);
+            await killTree.execute();
+          } catch {
+            // Ignore errors
+          }
+          await childProcess.current.kill();
+        } catch (error) {
+          console.error("Failed to kill server on exit:", error);
+        }
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
   const startServer = async () => {
+    addLog(`startServer called: isStarting=${isStarting.current}, childProcess=${!!childProcess.current}`);
+    if (isStarting.current || childProcess.current) {
+      addLog("Server start already in progress or running, skipping...");
+      return;
+    }
+    isStarting.current = true;
+
     try {
       addLog(`Starting server with model: ${modelName}`);
 
@@ -64,18 +134,28 @@ function App() {
         addLog(`[stderr] ${line}`);
       });
 
+      const child = await command.spawn();
+      const spawnedPid = child.pid;
+
+      // Set refs BEFORE releasing lock to prevent race conditions
+      childProcess.current = child;
+      currentPid.current = spawnedPid;
+
       command.on("close", (data) => {
         addLog(`Server process exited with code ${data.code}`);
-        setServerStatus((prev) => ({ ...prev, running: false, pid: null }));
-        childProcess.current = null;
+        // Only update state if this is still the current process (not a stale close event)
+        if (currentPid.current === spawnedPid) {
+          setServerStatus((prev) => ({ ...prev, running: false, ready: false, pid: null }));
+          childProcess.current = null;
+          currentPid.current = null;
+          isStarting.current = false;
+        }
       });
 
       command.on("error", (error) => {
         addLog(`Error: ${error}`);
+        isStarting.current = false;
       });
-
-      const child = await command.spawn();
-      childProcess.current = child;
 
       setServerStatus({
         running: true,
@@ -95,14 +175,25 @@ function App() {
       addLog(`Server started with PID: ${child.pid}`);
       addLog("Waiting for model to load...");
 
+      // Only release lock after everything is set up
+      isStarting.current = false;
+
       // Poll until server is ready
       const checkReady = async () => {
         for (let i = 0; i < 120; i++) { // Wait up to 2 minutes
+          // Stop polling if this process is no longer current
+          if (currentPid.current !== spawnedPid) {
+            addLog(`Polling cancelled for PID ${spawnedPid} (no longer current)`);
+            return;
+          }
           try {
             const resp = await fetch(`http://localhost:${port}/v1/models`);
             if (resp.ok) {
-              addLog("Server is ready!");
-              setServerStatus((prev) => ({ ...prev, ready: true }));
+              // Double-check we're still the current process before updating state
+              if (currentPid.current === spawnedPid) {
+                addLog("Server is ready!");
+                setServerStatus((prev) => ({ ...prev, ready: true }));
+              }
               return;
             }
           } catch {
@@ -110,21 +201,48 @@ function App() {
           }
           await new Promise((r) => setTimeout(r, 1000));
         }
-        addLog("Server failed to become ready");
+        if (currentPid.current === spawnedPid) {
+          addLog("Server failed to become ready");
+        }
       };
       checkReady();
     } catch (error) {
       addLog(`Failed to start server: ${error}`);
+      isStarting.current = false;
     }
   };
 
-  const stopServer = async () => {
-    if (childProcess.current) {
+  const stopServer = async (): Promise<boolean> => {
+    addLog("stopServer called");
+    isStarting.current = false;
+    const processToKill = childProcess.current;
+    const pidToKill = currentPid.current;
+    if (processToKill && pidToKill) {
       try {
-        addLog("Stopping server...");
-        await childProcess.current.kill();
+        addLog(`Stopping server (PID: ${pidToKill})...`);
+        // Clear refs first to prevent race conditions with close event
         childProcess.current = null;
-        setServerStatus((prev) => ({ ...prev, running: false, pid: null }));
+        currentPid.current = null;
+
+        // Kill the process tree recursively (PyInstaller spawns nested child processes)
+        // Kill descendants first (grandchildren, then children), then the main process
+        try {
+          const killTree = Command.create("sh", ["-c",
+            `pgrep -P ${pidToKill} | while read child; do ` +
+            `pgrep -P $child | xargs -r kill -9 2>/dev/null; ` +
+            `kill -9 $child 2>/dev/null; ` +
+            `done; true`
+          ]);
+          await killTree.execute();
+          addLog(`Killed child processes of PID ${pidToKill}`);
+        } catch {
+          // May fail if no children exist, that's ok
+        }
+
+        // Now kill the main process
+        await processToKill.kill();
+
+        setServerStatus((prev) => ({ ...prev, running: false, ready: false, pid: null }));
         await invoke("set_server_status", {
           running: false,
           port,
@@ -132,9 +250,24 @@ function App() {
           pid: null,
         });
         addLog("Server stopped");
+        return true;
       } catch (error) {
         addLog(`Failed to stop server: ${error}`);
+        return false;
       }
+    }
+    return true;
+  };
+
+  const switchModel = async (newModel: string) => {
+    addLog(`switchModel called: newModel=${newModel}, running=${serverStatus.running}, currentModel=${serverStatus.model}`);
+    if (serverStatus.running && newModel !== serverStatus.model) {
+      addLog(`Switching model from ${serverStatus.model} to ${newModel}...`);
+      setModelName(newModel);
+      // Stop the current server - user will manually start with new model
+      await stopServer();
+    } else {
+      setModelName(newModel);
     }
   };
 
@@ -195,14 +328,38 @@ function App() {
 
             <label>
               Model:
-              <input
-                type="text"
-                value={modelName}
-                onChange={(e) => setModelName(e.target.value)}
-                disabled={serverStatus.running}
-                placeholder="mlx-community/model-name"
-              />
+              {cachedModels.length > 0 && !useCustomModel ? (
+                <select
+                  value={modelName}
+                  onChange={(e) => switchModel(e.target.value)}
+                >
+                  {cachedModels.map((model) => (
+                    <option key={model.full_name} value={model.full_name}>
+                      {model.full_name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  disabled={serverStatus.running}
+                  placeholder="mlx-community/model-name"
+                />
+              )}
             </label>
+            {cachedModels.length > 0 && (
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={useCustomModel}
+                  onChange={(e) => setUseCustomModel(e.target.checked)}
+                  disabled={serverStatus.running}
+                />
+                Use custom model name
+              </label>
+            )}
 
             <label>
               Port:
@@ -216,11 +373,11 @@ function App() {
 
             <div className="button-group">
               {!serverStatus.running ? (
-                <button className="btn-primary" onClick={startServer}>
+                <button className="btn-primary" onClick={(e) => { e.preventDefault(); e.stopPropagation(); startServer(); }}>
                   Start Server
                 </button>
               ) : (
-                <button className="btn-danger" onClick={stopServer}>
+                <button className="btn-danger" onClick={(e) => { e.preventDefault(); e.stopPropagation(); stopServer(); }}>
                   Stop Server
                 </button>
               )}

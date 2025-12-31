@@ -12,6 +12,11 @@ Usage:
     vllm-mlx bench mlx-community/Llama-3.2-1B-Instruct-4bit --num-prompts 10
 """
 
+# Support for PyInstaller frozen executables with multiprocessing
+# This must be at the very top, before any other imports that might use multiprocessing
+import multiprocessing
+multiprocessing.freeze_support()
+
 import argparse
 import sys
 

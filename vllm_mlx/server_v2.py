@@ -528,7 +528,7 @@ def load_model(
         # Qwen3 fix: eos_token changed from <|im_end|> to <|endoftext|>
         # but chat template still uses <|im_end|>, so we need to set it explicitly
         # See: https://kaitchup.substack.com/p/qwen3-when-im_end-suddenly-becomes
-        tokenizer_config = None
+        tokenizer_config = {}
         if "qwen3" in model_name.lower() or "Qwen3" in model_name:
             tokenizer_config = {"eos_token": "<|im_end|>"}
             logger.info("Qwen3 detected: setting eos_token to <|im_end|>")

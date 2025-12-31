@@ -39,6 +39,7 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [cachedModels, setCachedModels] = useState<CachedModel[]>([]);
   const [useCustomModel, setUseCustomModel] = useState(false);
+  const [multiSession, setMultiSession] = useState(false);
   const childProcess = useRef<any>(null);
   const currentPid = useRef<number | null>(null);
   const isStarting = useRef<boolean>(false);
@@ -89,12 +90,17 @@ function App() {
 
       // Use Command.sidecar for bundled binary (no Python required)
       // The name must match externalBin in tauri.conf.json
-      const command = Command.sidecar("binaries/vllm-mlx-server", [
+      const args = [
         "serve",
         modelName,
         "--port",
         port.toString(),
-      ]);
+      ];
+      if (multiSession) {
+        args.push("--continuous-batching");
+        addLog("Multi-session mode enabled (continuous batching)");
+      }
+      const command = Command.sidecar("binaries/vllm-mlx-server", args);
 
       command.stdout.on("data", (line) => {
         addLog(`[stdout] ${line}`);
@@ -334,6 +340,17 @@ function App() {
               />
             </label>
 
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={multiSession}
+                onChange={(e) => setMultiSession(e.target.checked)}
+                disabled={serverStatus.running}
+              />
+              Multi-session mode
+              <span className="help-text">(for multiple concurrent users)</span>
+            </label>
+
             <div className="button-group">
               {!serverStatus.running ? (
                 <button className="btn-primary" onClick={(e) => { e.preventDefault(); e.stopPropagation(); startServer(); }}>
@@ -353,6 +370,9 @@ function App() {
                 </p>
                 <p>
                   <strong>Model:</strong> {serverStatus.model}
+                </p>
+                <p>
+                  <strong>Mode:</strong> {multiSession ? "Multi-session" : "Single-session"}
                 </p>
                 <p>
                   <strong>PID:</strong> {serverStatus.pid}

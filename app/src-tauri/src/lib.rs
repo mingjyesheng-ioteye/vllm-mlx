@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::process::Command;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
@@ -112,6 +113,15 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Kill all vllm-mlx-server processes when app exits
+                log::info!("App exiting, killing all server processes...");
+                let _ = Command::new("pkill")
+                    .args(["-9", "-f", "vllm-mlx-server"])
+                    .output();
+            }
+        });
 }

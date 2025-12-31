@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { Command } from "@tauri-apps/plugin-shell";
 import { invoke } from "@tauri-apps/api/core";
 import { fetch } from "@tauri-apps/plugin-http";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 
 interface ServerStatus {
@@ -74,37 +73,8 @@ function App() {
     loadCachedModels();
   }, []);
 
-  // Cleanup: kill child process when window closes
-  useEffect(() => {
-    const appWindow = getCurrentWindow();
-    const unlisten = appWindow.onCloseRequested(async () => {
-      if (childProcess.current && currentPid.current) {
-        console.log("Stopping server before exit...");
-        const pid = currentPid.current;
-        try {
-          // Kill process tree recursively (children and grandchildren)
-          try {
-            const killTree = Command.create("sh", ["-c",
-              `pgrep -P ${pid} | while read child; do ` +
-              `pgrep -P $child | xargs -r kill -9 2>/dev/null; ` +
-              `kill -9 $child 2>/dev/null; ` +
-              `done; true`
-            ]);
-            await killTree.execute();
-          } catch {
-            // Ignore errors
-          }
-          await childProcess.current.kill();
-        } catch (error) {
-          console.error("Failed to kill server on exit:", error);
-        }
-      }
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, []);
+  // Note: Server process cleanup on app exit is handled by the Rust backend
+  // via on_window_event handler in lib.rs
 
   const startServer = async () => {
     addLog(`startServer called: isStarting=${isStarting.current}, childProcess=${!!childProcess.current}`);
@@ -216,31 +186,24 @@ function App() {
     addLog("stopServer called");
     isStarting.current = false;
     const processToKill = childProcess.current;
-    const pidToKill = currentPid.current;
-    if (processToKill && pidToKill) {
+    if (processToKill) {
       try {
-        addLog(`Stopping server (PID: ${pidToKill})...`);
+        addLog("Stopping server...");
         // Clear refs first to prevent race conditions with close event
         childProcess.current = null;
         currentPid.current = null;
 
-        // Kill the process tree recursively (PyInstaller spawns nested child processes)
-        // Kill descendants first (grandchildren, then children), then the main process
+        // Kill all vllm-mlx-server processes to ensure complete cleanup
         try {
-          const killTree = Command.create("sh", ["-c",
-            `pgrep -P ${pidToKill} | while read child; do ` +
-            `pgrep -P $child | xargs -r kill -9 2>/dev/null; ` +
-            `kill -9 $child 2>/dev/null; ` +
-            `done; true`
+          const killAll = Command.create("sh", ["-c",
+            `pkill -9 -f "vllm-mlx-server" 2>/dev/null || true`
           ]);
-          await killTree.execute();
-          addLog(`Killed child processes of PID ${pidToKill}`);
+          await killAll.execute();
+          addLog("Killed all server processes");
         } catch {
-          // May fail if no children exist, that's ok
+          // Fall back to killing the main process directly
+          await processToKill.kill();
         }
-
-        // Now kill the main process
-        await processToKill.kill();
 
         setServerStatus((prev) => ({ ...prev, running: false, ready: false, pid: null }));
         await invoke("set_server_status", {

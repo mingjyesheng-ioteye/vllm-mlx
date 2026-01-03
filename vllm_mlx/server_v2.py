@@ -461,7 +461,9 @@ async def stream_chat_completion(
                 "model": model_name,
                 "choices": [{
                     "index": 0,
-                    "delta": {"content": clean_output_text(output.new_text)} if output.new_text else {},
+                    # Note: Don't use clean_output_text() on streaming chunks - it strips
+                    # leading spaces from tokens like " the", causing words to concatenate
+                    "delta": {"content": output.new_text} if output.new_text else {},
                     "finish_reason": output.finish_reason if output.finished else None,
                 }],
             }

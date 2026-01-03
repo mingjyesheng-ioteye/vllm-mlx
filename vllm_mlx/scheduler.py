@@ -517,7 +517,7 @@ class Scheduler:
             request.append_output_token(response.token)
 
             # Decode the new token
-            new_text = self.tokenizer.decode([response.token])
+            new_text = self.tokenizer.decode([response.token], skip_special_tokens=True, clean_up_tokenization_spaces=True)
 
             # Create output
             output = RequestOutput(
@@ -541,7 +541,7 @@ class Scheduler:
                 finished_ids.add(request_id)
 
                 # Decode full output
-                output.output_text = self.tokenizer.decode(request.output_token_ids)
+                output.output_text = self.tokenizer.decode(request.output_token_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
                 request.output_text = output.output_text
 
                 # Extract cache for future reuse

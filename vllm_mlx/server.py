@@ -721,9 +721,20 @@ Examples:
     # Load model before starting server
     load_model(args.model, force_mllm=args.mllm)
 
-    # Start server
+    # Start server with multi-session support
+    # - limit_concurrency: max concurrent connections (requests queued beyond this)
+    # - timeout_keep_alive: keep connections alive for multiple requests
+    # - backlog: connection queue size
     import uvicorn
-    uvicorn.run(app, host=args.host, port=args.port)
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=args.port,
+        limit_concurrency=100,
+        timeout_keep_alive=30,
+        backlog=2048,
+        log_level="info",
+    )
 
 
 if __name__ == "__main__":
